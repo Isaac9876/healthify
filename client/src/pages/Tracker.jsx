@@ -37,6 +37,15 @@ const Tracker = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  const fetchHistory = async (uid) => {
+    try {
+      const res = await api.get(`/progress/${uid}`);
+      setHistory(res.data);
+    } catch (err) {
+      console.error("Error fetching progress:", err);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -48,17 +57,8 @@ const Tracker = () => {
     return () => unsubscribe();
   }, []);
 
-  const fetchHistory = async (uid) => {
-    try {
-      const res = await api.get(`/progress/${uid}`);
-      setHistory(res.data);
-    } catch (err) {
-      console.error("Error fetching progress:", err);
-    }
-  };
-
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {

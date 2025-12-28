@@ -51,11 +51,19 @@ const Profile = () => {
       return;
     }
 
-    const dietaryArray = formData.dietaryPreferences.split(',').map(item => item.trim());
+    const dietaryArray = formData.dietaryPreferences
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
 
     // Basic validation
     if (!formData.age || !formData.healthGoals) {
       alert("Please fill in all required fields.");
+      return;
+    }
+    const ageNum = Number(formData.age);
+    if (!Number.isFinite(ageNum) || ageNum <= 0) {
+      alert("Please enter a valid age.");
       return;
     }
 
@@ -63,11 +71,11 @@ const Profile = () => {
       uid: user.uid,
       email: user.email,
       name: user.displayName || user.email.split('@')[0], // Fallback name
-      age: formData.age,
+      age: ageNum,
       dietaryPreferences: dietaryArray,
       healthGoals: formData.healthGoals
     })
-    .then(res => {
+    .then(() => {
       alert('Profile Updated Successfully! Redirecting to Dashboard...');
       navigate('/');
     })

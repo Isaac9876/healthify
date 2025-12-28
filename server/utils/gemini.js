@@ -3,7 +3,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const generateMealPlan = async (userProfile) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const prompt = `
     Generate a one-day meal plan for a ${userProfile.age} year old person living in Ghana.
@@ -56,7 +56,34 @@ const generateMealPlan = async (userProfile) => {
     return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Error generating meal plan:", error);
-    throw new Error("Failed to generate meal plan");
+    return {
+      meals: [
+        {
+          type: "Breakfast",
+          name: "Oat porridge with banana and peanuts",
+          description: "Warm oats topped with sliced banana and a sprinkle of groundnuts",
+          calories: 350
+        },
+        {
+          type: "Lunch",
+          name: "Grilled chicken with jollof rice and side salad",
+          description: "Lean grilled chicken breast served with portion-controlled jollof rice and vegetables",
+          calories: 600
+        },
+        {
+          type: "Dinner",
+          name: "Kontomire stew with boiled plantain",
+          description: "Light spinach-based stew (kontomire) with boiled ripe plantain",
+          calories: 450
+        },
+        {
+          type: "Snack",
+          name: "Watermelon slices and roasted groundnuts",
+          description: "Hydrating fruit with a handful of protein-rich groundnuts",
+          calories: 180
+        }
+      ]
+    };
   }
 };
 

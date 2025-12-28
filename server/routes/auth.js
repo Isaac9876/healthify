@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // Create or Update User Profile
 // POST /api/auth/profile
@@ -8,23 +9,31 @@ router.post('/profile', async (req, res) => {
   const { uid, email, name, age, dietaryPreferences, healthGoals } = req.body;
 
   try {
+    const rs = mongoose.connection.readyState;
+    if (rs === 0) {
+      return res.status(503).json({ msg: 'Database not connected' });
+    }
+
+    const normalizedAge = age !== undefined && age !== null ? Number(age) : undefined;
+    if (normalizedAge !== undefined && (!Number.isFinite(normalizedAge) || normalizedAge <= 0)) {
+      return res.status(400).json({ msg: 'Invalid age' });
+    }
+    const preferences = Array.isArray(dietaryPreferences) ? dietaryPreferences.filter(Boolean) : [];
+
     let user = await User.findOne({ uid });
 
     if (user) {
-      // Update
-      user.age = age;
-      user.dietaryPreferences = dietaryPreferences;
+      user.age = normalizedAge;
+      user.dietaryPreferences = preferences;
       user.healthGoals = healthGoals;
       user.name = name;
-      // email is usually constant but can be updated
     } else {
-      // Create
       user = new User({
         uid,
         email,
         name,
-        age,
-        dietaryPreferences,
+        age: normalizedAge,
+        dietaryPreferences: preferences,
         healthGoals
       });
     }
@@ -33,7 +42,7 @@ router.post('/profile', async (req, res) => {
     res.json(user);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
@@ -46,7 +55,7 @@ router.get('/profile/:uid', async (req, res) => {
     res.json(user);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
