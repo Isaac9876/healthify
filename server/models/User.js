@@ -24,6 +24,14 @@ const UserSchema = new mongoose.Schema({
   healthGoals: {
     type: String,
   },
+  calorieGoal: {
+    type: Number,
+    default: 0,
+  },
+  hydrationTarget: {
+    type: Number, // glasses or liters depending on UI
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

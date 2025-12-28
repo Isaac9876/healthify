@@ -12,7 +12,9 @@ const Profile = () => {
   const [formData, setFormData] = useState({
     age: '',
     dietaryPreferences: '',
-    healthGoals: ''
+    healthGoals: '',
+    calorieGoal: '',
+    hydrationTarget: ''
   });
 
   useEffect(() => {
@@ -25,7 +27,9 @@ const Profile = () => {
             setFormData({
               age: res.data.age || '',
               dietaryPreferences: res.data.dietaryPreferences ? res.data.dietaryPreferences.join(', ') : '',
-              healthGoals: res.data.healthGoals || ''
+              healthGoals: res.data.healthGoals || '',
+              calorieGoal: res.data.calorieGoal || '',
+              hydrationTarget: res.data.hydrationTarget || ''
             });
           }
         } catch (err) {
@@ -66,6 +70,16 @@ const Profile = () => {
       alert("Please enter a valid age.");
       return;
     }
+    const calGoalNum = formData.calorieGoal ? Number(formData.calorieGoal) : undefined;
+    const hydTargetNum = formData.hydrationTarget ? Number(formData.hydrationTarget) : undefined;
+    if (calGoalNum !== undefined && (!Number.isFinite(calGoalNum) || calGoalNum <= 0)) {
+      alert("Please enter a valid daily calorie goal.");
+      return;
+    }
+    if (hydTargetNum !== undefined && (!Number.isFinite(hydTargetNum) || hydTargetNum <= 0)) {
+      alert("Please enter a valid hydration target.");
+      return;
+    }
 
     api.post('/auth/profile', {
       uid: user.uid,
@@ -73,7 +87,9 @@ const Profile = () => {
       name: user.displayName || user.email.split('@')[0], // Fallback name
       age: ageNum,
       dietaryPreferences: dietaryArray,
-      healthGoals: formData.healthGoals
+      healthGoals: formData.healthGoals,
+      calorieGoal: calGoalNum,
+      hydrationTarget: hydTargetNum
     })
     .then(() => {
       alert('Profile Updated Successfully! Redirecting to Dashboard...');
@@ -116,6 +132,30 @@ const Profile = () => {
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
               required
             />
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">Daily Calorie Goal (kcal)</label>
+              <input 
+                type="number" 
+                name="calorieGoal" 
+                value={formData.calorieGoal} 
+                onChange={handleChange}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                placeholder="e.g. 1800"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">Hydration Target (glasses)</label>
+              <input 
+                type="number" 
+                name="hydrationTarget" 
+                value={formData.hydrationTarget} 
+                onChange={handleChange}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                placeholder="e.g. 8"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-gray-700 font-semibold mb-2">Dietary Preferences</label>

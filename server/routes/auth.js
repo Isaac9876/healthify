@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // Create or Update User Profile
 // POST /api/auth/profile
 router.post('/profile', async (req, res) => {
-  const { uid, email, name, age, dietaryPreferences, healthGoals } = req.body;
+  const { uid, email, name, age, dietaryPreferences, healthGoals, calorieGoal, hydrationTarget } = req.body;
 
   try {
     const rs = mongoose.connection.readyState;
@@ -19,6 +19,8 @@ router.post('/profile', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid age' });
     }
     const preferences = Array.isArray(dietaryPreferences) ? dietaryPreferences.filter(Boolean) : [];
+    const normalizedCalorieGoal = calorieGoal !== undefined && calorieGoal !== null ? Number(calorieGoal) : undefined;
+    const normalizedHydrationTarget = hydrationTarget !== undefined && hydrationTarget !== null ? Number(hydrationTarget) : undefined;
 
     let user = await User.findOne({ uid });
 
@@ -27,6 +29,8 @@ router.post('/profile', async (req, res) => {
       user.dietaryPreferences = preferences;
       user.healthGoals = healthGoals;
       user.name = name;
+      if (normalizedCalorieGoal !== undefined) user.calorieGoal = normalizedCalorieGoal;
+      if (normalizedHydrationTarget !== undefined) user.hydrationTarget = normalizedHydrationTarget;
     } else {
       user = new User({
         uid,
@@ -34,7 +38,9 @@ router.post('/profile', async (req, res) => {
         name,
         age: normalizedAge,
         dietaryPreferences: preferences,
-        healthGoals
+        healthGoals,
+        calorieGoal: normalizedCalorieGoal,
+        hydrationTarget: normalizedHydrationTarget
       });
     }
 

@@ -18,6 +18,10 @@ const ProgressSchema = new mongoose.Schema({
   caloriesConsumed: {
     type: Number,
   },
+  mealsCompleted: {
+    type: Number,
+    default: 0,
+  },
   mood: {
     type: String, // e.g., "Energetic", "Tired"
   }

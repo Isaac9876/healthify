@@ -5,6 +5,7 @@ import api from '../api';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaUtensils, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { FaFire, FaListOl } from 'react-icons/fa';
 import Landing from './Landing';
 
 const Home = () => {
@@ -13,6 +14,7 @@ const Home = () => {
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [todayProgress, setTodayProgress] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,8 +26,10 @@ const Home = () => {
           setUserProfile(profileRes.data);
 
           const mealsRes = await api.get(`/meals/${currentUser.uid}`);
+          const progressRes = await api.get(`/progress/${currentUser.uid}`);
           const today = new Date().toISOString().split('T')[0];
           let todayPlan = null;
+          let todayProg = null;
 
           if (mealsRes.data && mealsRes.data.length > 0) {
             const latest = mealsRes.data[0];
@@ -33,6 +37,10 @@ const Home = () => {
               todayPlan = latest;
               setMealPlan(latest);
             }
+          }
+          if (Array.isArray(progressRes.data)) {
+            todayProg = progressRes.data.find(p => p.date === today) || null;
+            setTodayProgress(todayProg);
           }
 
           // Auto-generate if no plan exists and profile is complete
@@ -98,6 +106,11 @@ const Home = () => {
 
     try {
       await api.put(`/meals/${mealPlan._id}/toggle/${index}`);
+      // Refresh today's progress summary
+      const progressRes = await api.get(`/progress/${user.uid}`);
+      const today = new Date().toISOString().split('T')[0];
+      const todayProg = Array.isArray(progressRes.data) ? progressRes.data.find(p => p.date === today) : null;
+      setTodayProgress(todayProg || null);
     } catch (err) {
       console.error("Error toggling meal:", err);
       // Revert on error
@@ -163,6 +176,58 @@ const Home = () => {
       </div>
 
       <div className="container mx-auto px-4 py-12">
+        {/* Summary Cards */}
+        {todayProgress && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10"
+          >
+            <div className="bg-white rounded-xl shadow p-6 flex items-center gap-4">
+              <FaFire className="text-red-500 text-3xl" />
+              <div>
+                <p className="text-sm text-gray-500">Calories Consumed</p>
+                <p className="text-2xl font-bold text-gray-800">{todayProgress.caloriesConsumed || 0} kcal</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow p-6 flex items-center gap-4">
+              <FaListOl className="text-blue-600 text-3xl" />
+              <div>
+                <p className="text-sm text-gray-500">Meals Completed</p>
+                <p className="text-2xl font-bold text-gray-800">{todayProgress.mealsCompleted || 0} / 4</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow p-6">
+              <p className="text-sm text-gray-500 mb-2">Daily Completion</p>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, ((todayProgress.mealsCompleted || 0)/4)*100)}%` }}
+                  className="h-3 bg-green-500 rounded-full"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+        {userProfile && userProfile.calorieGoal > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl shadow p-6 mb-10"
+          >
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-gray-500">Calorie Goal</p>
+              <p className="text-sm text-gray-700">{todayProgress?.caloriesConsumed || 0} / {userProfile.calorieGoal} kcal</p>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, ((todayProgress?.caloriesConsumed || 0)/userProfile.calorieGoal)*100)}%` }}
+                className="h-4 bg-red-500 rounded-full"
+              />
+            </div>
+          </motion.div>
+        )}
         {mealPlan ? (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -185,7 +250,23 @@ const Home = () => {
                   transition={{ delay: index * 0.1 }}
                   className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition duration-300 border border-gray-100"
                 >
-                  <div className={`p-4 ${meal.type === 'Breakfast' ? 'bg-orange-100' : meal.type === 'Lunch' ? 'bg-green-100' : meal.type === 'Dinner' ? 'bg-blue-100' : 'bg-purple-100'}`}>
+                  <div 
+                    className={`p-4 ${meal.type === 'Breakfast' ? 'bg-orange-100' : meal.type === 'Lunch' ? 'bg-green-100' : meal.type === 'Dinner' ? 'bg-blue-100' : 'bg-purple-100'}`}
+                    style={{
+                      backgroundImage: `url(${
+                        meal.type === 'Breakfast' 
+                          ? 'https://images.unsplash.com/photo-1543353071-873f17a7a088?q=80&w=1200&auto=format&fit=crop'
+                          : meal.type === 'Lunch' 
+                          ? 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200&auto=format&fit=crop'
+                          : meal.type === 'Dinner' 
+                          ? 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=1200&auto=format&fit=crop'
+                          : 'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?q=80&w=1200&auto=format&fit=crop'
+                      })`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundBlendMode: 'overlay'
+                    }}
+                  >
                     <h3 className="font-bold text-lg text-gray-800 flex items-center">
                       <FaUtensils className="mr-2 opacity-75" />
                       {meal.type}

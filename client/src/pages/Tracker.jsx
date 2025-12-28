@@ -90,10 +90,19 @@ const Tracker = () => {
     datasets: [
       {
         label: 'Weight (kg)',
-        data: history.map(h => h.weight),
+        data: history.map(h => h.weight ?? null),
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        tension: 0.3,
       },
+      {
+        label: 'Calories (kcal)',
+        data: history.map(h => h.caloriesConsumed ?? 0),
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.3)',
+        yAxisID: 'y1',
+        tension: 0.3,
+      }
     ],
   };
 
@@ -105,9 +114,26 @@ const Tracker = () => {
       },
       title: {
         display: true,
-        text: 'Weight Progress',
+        text: 'Progress Over Time',
       },
+      tooltip: {
+        mode: 'index',
+        intersect: false
+      }
     },
+    scales: {
+      y: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'Weight (kg)' }
+      },
+      y1: {
+        type: 'linear',
+        position: 'right',
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: 'Calories (kcal)' }
+      }
+    }
   };
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
@@ -130,6 +156,31 @@ const Tracker = () => {
           className="bg-white p-8 rounded-2xl shadow-xl"
         >
           <h2 className="text-2xl font-bold mb-6 text-gray-800">Log Today's Data</h2>
+          {history.length > 0 && (
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-gray-500">Yesterday Calories</p>
+                <p className="text-xl font-bold text-green-700">{history[history.length-1].caloriesConsumed || 0} kcal</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-gray-500">Yesterday Weight</p>
+                <p className="text-xl font-bold text-blue-700">{history[history.length-1].weight || 0} kg</p>
+              </div>
+            </div>
+          )}
+          {history.length > 0 && (
+            <div className="mb-6">
+              <p className="text-sm text-gray-500 mb-2">Hydration</p>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, ((history[history.length-1].waterIntake || 0) / (8)) * 100)}%` }}
+                  className="h-3 bg-blue-500 rounded-full"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Target: 8 glasses. Intake: {history[history.length-1].waterIntake || 0}.</p>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-semibold mb-2 flex items-center gap-2">

@@ -73,26 +73,31 @@ router.put('/:planId/toggle/:mealIndex', async (req, res) => {
 
     // Update Progress
     const calories = meal.calories || 0;
-    if (calories > 0) {
-      const today = mealPlan.date; // Use meal plan date
-      let progress = await Progress.findOne({ userId: mealPlan.userId, date: today });
-      
-      if (!progress) {
-        progress = new Progress({
-          userId: mealPlan.userId,
-          date: today,
-          caloriesConsumed: 0
-        });
-      }
+    const today = mealPlan.date; // Use meal plan date
+    let progress = await Progress.findOne({ userId: mealPlan.userId, date: today });
+    
+    if (!progress) {
+      progress = new Progress({
+        userId: mealPlan.userId,
+        date: today,
+        caloriesConsumed: 0,
+        mealsCompleted: 0,
+      });
+    }
 
-      if (newStatus) {
+    if (newStatus) {
+      if (calories > 0) {
         progress.caloriesConsumed = (progress.caloriesConsumed || 0) + calories;
-      } else {
+      }
+      progress.mealsCompleted = (progress.mealsCompleted || 0) + 1;
+    } else {
+      if (calories > 0) {
         progress.caloriesConsumed = Math.max(0, (progress.caloriesConsumed || 0) - calories);
       }
-      
-      await progress.save();
+      progress.mealsCompleted = Math.max(0, (progress.mealsCompleted || 0) - 1);
     }
+    
+    await progress.save();
     
     res.json(mealPlan);
   } catch (err) {
