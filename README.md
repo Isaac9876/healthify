@@ -43,16 +43,16 @@ Your AI-powered nutrition assistant with meal planning, calorie tracking, and hy
 - Vite proxy: [vite.config.js](file:///c:/Users/boate/OneDrive/Desktop/Healthify/client/vite.config.js)
 
 ## API Overview
-- POST `/api/auth/profile` — create/update user profile.
-- GET `/api/auth/profile/:uid` — fetch profile by Firebase UID.
-- POST `/api/meals/generate` — create today’s meal plan via Gemini or fallback.
-- GET `/api/meals/:uid` — list meal plans.
-- PUT `/api/meals/:planId/toggle/:mealIndex` — toggle completion; updates daily calories.
-- POST `/api/progress` — upsert progress for a date.
-- GET `/api/progress/:uid` — progress history.
+- POST `/api/meals/log` — Record a meal as eaten with an optional rating.
+- GET `/api/progress/week` — Fetch weekly adherence, budget savings, and protein stats.
+- GET `/api/meals/feedback-status` — Check recent rating consistency for smart personalized nudges.
+- GET `/api/meals/grocery/week` — Aggregate ingredients for the current week's plan.
+- POST `/api/meals/plan/add` — Manually add a specific meal to the current plan.
 
 ## How It Works
-- Login triggers a backend sync: see [Login.jsx](file:///c:/Users/boate/OneDrive/Desktop/Healthify/client/src/pages/Login.jsx#L26-L44) and [auth.js](file:///c:/Users/boate/OneDrive/Desktop/Healthify/server/routes/auth.js#L7-L40).
+- **Meal Logging:** Check the "I ate this" box on your dashboard to record a meal. You can then provide a 1-5 star rating which helps the AI learn your preferences.
+- **Weekly Progress:** The Progress page shows your adherence percentage and nutritional insights based on your logged meals vs. planned meals.
+- **AI Feedback Loop:** As you rate meals, the system extracts tags (e.g., "high-protein") and uses them to prioritize future suggestions.
 - Profile submission validates input and persists to MongoDB: [Profile.jsx](file:///c:/Users/boate/OneDrive/Desktop/Healthify/client/src/pages/Profile.jsx#L43-L97) and [auth.js](file:///c:/Users/boate/OneDrive/Desktop/Healthify/server/routes/auth.js#L7-L40).
 - Home auto-generates a plan if none exists for today: [Home.jsx](file:///c:/Users/boate/OneDrive/Desktop/Healthify/client/src/pages/Home.jsx#L26-L61).
 - Meal toggles update calories and meal completion: [meal.js](file:///c:/Users/boate/OneDrive/Desktop/Healthify/server/routes/meal.js#L46-L104).

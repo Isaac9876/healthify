@@ -15,9 +15,6 @@ const ProgressSchema = new mongoose.Schema({
   waterIntake: {
     type: Number, // in glasses or liters
   },
-  caloriesConsumed: {
-    type: Number,
-  },
   mealsCompleted: {
     type: Number,
     default: 0,

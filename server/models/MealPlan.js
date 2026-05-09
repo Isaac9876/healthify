@@ -12,28 +12,32 @@ const MealPlanSchema = new mongoose.Schema({
   },
   meals: [
     {
+      mealId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Meal',
+        required: true,
+      },
       type: {
         type: String,
-        enum: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
+        enum: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Extra'],
         required: true,
       },
-      name: {
-        type: String,
-        required: true,
-      },
-      description: {
-        type: String,
-      },
-      calories: {
-        type: Number,
-        default: 0
-      },
+      name: String,
+      calories: Number,
+      cost_ghs: Number,
+      prep_time_min: Number,
+      protein: Number,
+      carbs: Number,
+      fat: Number,
+      reason: String,
       completed: {
         type: Boolean,
         default: false,
       },
     },
   ],
+  total_cal: Number,
+  total_cost_ghs: Number,
   createdAt: {
     type: Date,
     default: Date.now,

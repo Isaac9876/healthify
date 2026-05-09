@@ -2,311 +2,345 @@ import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import api from '../api';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FaUtensils, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
-import { FaFire, FaListOl } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  FaUtensils, FaFire, FaClock, FaMoneyBillWave, FaSync, 
+  FaThumbsDown, FaHeart, FaChevronRight, FaInfoCircle, FaTimes,
+  FaCheckCircle, FaStar, FaBolt, FaLeaf, FaExclamationTriangle,
+  FaSearch
+} from 'react-icons/fa';
 import Landing from './Landing';
 
+const SkeletonCard = () => (
+  <div className="bg-white rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden animate-pulse h-full">
+    <div className="h-64 bg-gray-200" />
+    <div className="p-10 space-y-4">
+      <div className="h-8 bg-gray-200 rounded-xl w-3/4" />
+      <div className="h-4 bg-gray-100 rounded-lg w-full" />
+      <div className="h-4 bg-gray-100 rounded-lg w-5/6" />
+      <div className="grid grid-cols-2 gap-4 mt-8">
+        <div className="h-12 bg-gray-200 rounded-2xl" />
+        <div className="h-12 bg-gray-200 rounded-2xl" />
+      </div>
+    </div>
+  </div>
+);
+
 const Home = () => {
-  const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
-  const [mealPlan, setMealPlan] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [todayProgress, setTodayProgress] = useState(null);
+  const [fbUser, setFbUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          const profileRes = await api.get(`/auth/profile/${currentUser.uid}`);
-          setUserProfile(profileRes.data);
-
-          const mealsRes = await api.get(`/meals/${currentUser.uid}`);
-          const progressRes = await api.get(`/progress/${currentUser.uid}`);
-          const today = new Date().toISOString().split('T')[0];
-          let todayPlan = null;
-          let todayProg = null;
-
-          if (mealsRes.data && mealsRes.data.length > 0) {
-            const latest = mealsRes.data[0];
-            if (latest.date === today) {
-              todayPlan = latest;
-              setMealPlan(latest);
-            }
-          }
-          if (Array.isArray(progressRes.data)) {
-            todayProg = progressRes.data.find(p => p.date === today) || null;
-            setTodayProgress(todayProg);
-          }
-
-          // Auto-generate if no plan exists and profile is complete
-          if (!todayPlan && profileRes.data && profileRes.data.age && profileRes.data.healthGoals) {
-            setGenerating(true);
-            try {
-              const genRes = await api.post('/meals/generate', {
-                uid: currentUser.uid,
-                age: profileRes.data.age,
-                dietaryPreferences: profileRes.data.dietaryPreferences,
-                healthGoals: profileRes.data.healthGoals
-              });
-              setMealPlan(genRes.data);
-            } catch (err) {
-              console.error("Auto-generation failed:", err);
-            }
-            setGenerating(false);
-          }
-
-        } catch (err) {
-          console.error("Error fetching data:", err);
-        }
-      }
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFbUser(user);
+      setAuthLoading(false);
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, []);
 
-  const generateMealPlan = async () => {
-    if (!user) {
-        navigate('/login');
-        return;
+  const { data: mealPlan, isLoading, isError, error: mealPlanError, refetch } = useQuery({
+    queryKey: ['mealPlan', fbUser?.uid],
+    queryFn: async () => {
+      const res = await api.get(`/meals/today?userId=${fbUser.uid}`);
+      return res.data;
+    },
+    enabled: !!fbUser,
+    staleTime: 1000 * 60 * 15,
+  });
+
+  const fullSwapMutation = useMutation({
+    mutationFn: async () => {
+      // Using a dedicated refresh endpoint is more reliable than DELETE + refetch
+      return await api.post('/meals/refresh', { userId: fbUser.uid });
+    },
+    onSuccess: (res) => {
+      queryClient.setQueryData(['mealPlan', fbUser.uid], res.data);
+      alert("Plan synchronized successfully!");
+    },
+    onError: (err) => {
+      alert("Sync failed: " + (err.response?.data?.message || err.message));
     }
-    if (!userProfile || !userProfile.age || !userProfile.healthGoals) {
-      alert("Please complete your profile first!");
-      navigate('/profile');
-      return;
+  });
+
+  const singleSwapMutation = useMutation({
+    mutationFn: async ({ mealId, index }) => {
+      return await api.post('/meals/swap-single', { userId: fbUser.uid, mealId, index });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['mealPlan']);
+    },
+  });
+
+  const logMutation = useMutation({
+    mutationFn: async ({ mealId, date, eaten, rating }) => {
+      await api.post('/meals/log', { userId: fbUser.uid, mealId, date, eaten, rating });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['mealPlan']);
     }
+  });
 
-    setGenerating(true);
-    try {
-      const res = await api.post('/meals/generate', {
-        uid: user.uid,
-        age: userProfile.age,
-        dietaryPreferences: userProfile.dietaryPreferences,
-        healthGoals: userProfile.healthGoals
-      });
-      setMealPlan(res.data);
-    } catch (err) {
-      console.error("Error generating meal plan:", err);
-      alert("Failed to generate meal plan. Please try again.");
-    }
-    setGenerating(false);
-  };
-
-  const toggleMeal = async (index) => {
-    if (!mealPlan) return;
-    
-    // Optimistic update
-    const newMeals = [...mealPlan.meals];
-    newMeals[index].completed = !newMeals[index].completed;
-    setMealPlan({ ...mealPlan, meals: newMeals });
-
-    try {
-      await api.put(`/meals/${mealPlan._id}/toggle/${index}`);
-      // Refresh today's progress summary
-      const progressRes = await api.get(`/progress/${user.uid}`);
-      const today = new Date().toISOString().split('T')[0];
-      const todayProg = Array.isArray(progressRes.data) ? progressRes.data.find(p => p.date === today) : null;
-      setTodayProgress(todayProg || null);
-    } catch (err) {
-      console.error("Error toggling meal:", err);
-      // Revert on error
-      newMeals[index].completed = !newMeals[index].completed;
-      setMealPlan({ ...mealPlan, meals: newMeals });
-      alert("Failed to update meal status");
-    }
-  };
-
-  if (loading) return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-green-500"></div>
+  if (authLoading) return (
+    <div className="flex justify-center items-center h-screen bg-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent" />
     </div>
   );
 
-  if (!user) {
-    return <Landing />;
-  }
+  if (!fbUser) return <Landing />;
+
+  const totals = mealPlan?.meals?.reduce((acc, m) => ({
+    calories: acc.calories + (m.calories || 0),
+    cost: acc.cost + (m.cost_ghs || 0),
+    protein: acc.protein + (m.protein || 0)
+  }), { calories: 0, cost: 0, protein: 0 }) || { calories: 0, cost: 0, protein: 0 };
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      {/* Hero Section */}
-      <div className="bg-green-600 text-white py-16 px-4 text-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1543362906-ac1b96633e36?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80')", backgroundSize: 'cover', backgroundBlendMode: 'overlay'}}>
-        <motion.h1 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-4xl md:text-5xl font-bold mb-4"
-        >
-          Welcome back, {user?.displayName}!
-        </motion.h1>
-        <p className="text-xl md:text-2xl mb-8">Your journey to a healthier you starts with a single meal.</p>
-        
-        {userProfile && (!userProfile.age || !userProfile.healthGoals) && (
-           <motion.div 
-             initial={{ opacity: 0, y: 10 }}
-             animate={{ opacity: 1, y: 0 }}
-             className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 max-w-2xl mx-auto text-left rounded shadow-md"
-             role="alert"
-           >
-             <div className="flex items-center justify-between">
-               <div>
-                 <p className="font-bold">Profile Incomplete</p>
-                 <p>Please complete your health profile to get personalized meal plans.</p>
-               </div>
-               <Link to="/profile" className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded transition">
-                 Complete Profile
-               </Link>
-             </div>
-           </motion.div>
-        )}
+    <div className="bg-gray-50/30 min-h-screen pb-32 font-sans">
+      {/* Premium Header */}
+      <header className="bg-white pt-20 pb-32 border-b border-gray-100">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10">
+            <div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 mb-4">
+                <span className="w-8 h-[2px] bg-green-600" />
+                <span className="text-green-600 font-black uppercase tracking-[0.3em] text-[10px]">Today's Protocol</span>
+              </motion.div>
+              <h1 className="text-5xl lg:text-7xl font-black text-gray-900 tracking-tighter">Fueling <span className="text-green-600">Growth</span>.</h1>
+              <p className="text-gray-500 mt-4 text-xl font-medium max-w-xl">
+                Your personalized nutrition path for {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}.
+              </p>
+            </div>
 
-        {!mealPlan && (
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={generateMealPlan}
-            disabled={generating}
-            className="bg-white text-green-700 font-bold py-3 px-8 rounded-full shadow-lg hover:bg-gray-100 transition duration-300 disabled:opacity-50"
-          >
-            {generating ? 'Crafting your menu...' : 'Generate Today\'s Meal Plan'}
-          </motion.button>
-        )}
-      </div>
-
-      <div className="container mx-auto px-4 py-12">
-        {/* Summary Cards */}
-        {todayProgress && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10"
-          >
-            <div className="bg-white rounded-xl shadow p-6 flex items-center gap-4">
-              <FaFire className="text-red-500 text-3xl" />
+            {/* Quick Stats Banner */}
+            <div className="bg-gray-900 text-white p-10 rounded-[3rem] shadow-2xl shadow-gray-200 flex flex-wrap gap-12 min-w-[320px]">
               <div>
-                <p className="text-sm text-gray-500">Calories Consumed</p>
-                <p className="text-2xl font-bold text-gray-800">{todayProgress.caloriesConsumed || 0} kcal</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Total Energy</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black">{totals.calories}</span>
+                  <span className="text-xs opacity-50 font-bold uppercase">kcal</span>
+                </div>
               </div>
-            </div>
-            <div className="bg-white rounded-xl shadow p-6 flex items-center gap-4">
-              <FaListOl className="text-blue-600 text-3xl" />
+              <div className="w-[1px] h-12 bg-white/10 hidden sm:block" />
               <div>
-                <p className="text-sm text-gray-500">Meals Completed</p>
-                <p className="text-2xl font-bold text-gray-800">{todayProgress.mealsCompleted || 0} / 4</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Budget Usage</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black">{Math.round(totals.cost)}</span>
+                  <span className="text-xs opacity-50 font-bold uppercase">/ {mealPlan?.userBudget || 150} ghs</span>
+                </div>
               </div>
-            </div>
-            <div className="bg-white rounded-xl shadow p-6">
-              <p className="text-sm text-gray-500 mb-2">Daily Completion</p>
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, ((todayProgress.mealsCompleted || 0)/4)*100)}%` }}
-                  className="h-3 bg-green-500 rounded-full"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-        {userProfile && userProfile.calorieGoal > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow p-6 mb-10"
-          >
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-sm text-gray-500">Calorie Goal</p>
-              <p className="text-sm text-gray-700">{todayProgress?.caloriesConsumed || 0} / {userProfile.calorieGoal} kcal</p>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, ((todayProgress?.caloriesConsumed || 0)/userProfile.calorieGoal)*100)}%` }}
-                className="h-4 bg-red-500 rounded-full"
-              />
-            </div>
-          </motion.div>
-        )}
-        {mealPlan ? (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-800">Your Daily Fuel</h2>
-              <span className="bg-green-100 text-green-800 text-sm font-medium px-4 py-1 rounded-full">
-                {new Date().toLocaleDateString()}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {mealPlan.meals.map((meal, index) => (
-                <motion.div 
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition duration-300 border border-gray-100"
+              <div className="w-full sm:w-auto mt-4 sm:mt-0 flex items-center">
+                <button 
+                  onClick={() => fullSwapMutation.mutate()}
+                  className="bg-green-600 hover:bg-green-500 text-white p-4 rounded-2xl transition-all shadow-xl active:scale-90"
+                  title="Regenerate Full Day"
                 >
-                  <div 
-                    className={`p-4 ${meal.type === 'Breakfast' ? 'bg-orange-100' : meal.type === 'Lunch' ? 'bg-green-100' : meal.type === 'Dinner' ? 'bg-blue-100' : 'bg-purple-100'}`}
-                    style={{
-                      backgroundImage: `url(${
-                        meal.type === 'Breakfast' 
-                          ? 'https://images.unsplash.com/photo-1543353071-873f17a7a088?q=80&w=1200&auto=format&fit=crop'
-                          : meal.type === 'Lunch' 
-                          ? 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=1200&auto=format&fit=crop'
-                          : meal.type === 'Dinner' 
-                          ? 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=1200&auto=format&fit=crop'
-                          : 'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?q=80&w=1200&auto=format&fit=crop'
-                      })`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundBlendMode: 'overlay'
-                    }}
-                  >
-                    <h3 className="font-bold text-lg text-gray-800 flex items-center">
-                      <FaUtensils className="mr-2 opacity-75" />
-                      {meal.type}
-                    </h3>
-                  </div>
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-xl text-gray-800">{meal.name}</h4>
-                      {meal.calories && (
-                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                          {meal.calories} kcal
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-gray-600 text-sm mb-4">{meal.description}</p>
-                    <div className="flex justify-end items-center gap-2">
-                      <span className={`text-sm font-medium ${meal.completed ? 'text-green-600' : 'text-gray-400'}`}>
-                        {meal.completed ? 'Completed' : 'Mark as Done'}
-                      </span>
-                      <button 
-                        onClick={() => toggleMeal(index)}
-                        className={`transition duration-300 transform active:scale-90 ${meal.completed ? 'text-green-500' : 'text-gray-300 hover:text-green-400'}`}
-                      >
-                        <FaCheckCircle size={28} />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  <FaSync className={fullSwapMutation.isLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
-          </motion.div>
-        ) : (
-          <div className="text-center py-12">
-            <FaExclamationCircle className="mx-auto text-gray-300 text-6xl mb-4" />
-            <p className="text-gray-500 text-xl">No meal plan generated for today yet.</p>
-            <p className="text-gray-400">Click the button above to get started!</p>
           </div>
+        </div>
+      </header>
+
+      {/* Meals Grid */}
+      <main className="container mx-auto px-6 -mt-16">
+        {/* Detection for Ghost Meals (deleted IDs) */}
+        {mealPlan?.meals?.some(m => !m.mealId) && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 bg-amber-50 border border-amber-200 p-8 rounded-[2.5rem] flex items-center gap-6"
+          >
+            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 flex-shrink-0">
+              <FaExclamationTriangle size={32} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-amber-900">Database Synchronization Required</h3>
+              <p className="text-amber-700 font-medium">Your current plan contains meals that were updated during the price re-scaling. Please refresh your plan to sync with the new prices.</p>
+            </div>
+            <button 
+              onClick={() => fullSwapMutation.mutate()}
+              disabled={fullSwapMutation.isLoading}
+              className="ml-auto bg-amber-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:bg-amber-700 transition-all whitespace-nowrap flex items-center gap-3 disabled:opacity-50"
+            >
+              {fullSwapMutation.isLoading ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                  Syncing...
+                </>
+              ) : (
+                "Refresh Plan Now"
+              )}
+            </button>
+          </motion.div>
         )}
-      </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {isLoading ? (
+            [1, 2, 3].map(i => <SkeletonCard key={i} />)
+          ) : isError ? (
+            <div className="col-span-full py-20 text-center bg-white rounded-[4rem] shadow-xl border border-red-50 px-10">
+              <div className="w-24 h-24 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                <FaExclamationTriangle size={40} />
+              </div>
+              <h3 className="text-3xl font-black text-gray-900 mb-4">Sync Issue</h3>
+              <p className="text-gray-500 mb-8 max-w-md mx-auto text-lg leading-relaxed">
+                {mealPlanError?.response?.status === 404 
+                  ? "It looks like your health profile isn't fully set up yet. We need a few details to build your nutrition plan."
+                  : (mealPlanError?.response?.data?.message || "Unable to connect to the health servers. Check your internet and try again.")}
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                {mealPlanError?.response?.status === 404 ? (
+                  <button 
+                    onClick={() => navigate('/profile')} 
+                    className="bg-green-600 text-white px-12 py-5 rounded-2xl font-black shadow-2xl shadow-green-200 active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                    Set Up My Profile <FaChevronRight size={14} />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => refetch()} 
+                    className="bg-gray-900 text-white px-12 py-5 rounded-2xl font-black shadow-2xl active:scale-95 transition-all"
+                  >
+                    Try Re-Syncing Dashboard
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {mealPlan?.meals?.map((meal, index) => (
+                <MealCard 
+                  key={meal.mealId?._id || index}
+                  meal={meal} 
+                  index={index}
+                  onLog={(data) => logMutation.mutate({ ...data, date: mealPlan.date })}
+                  onSwap={() => singleSwapMutation.mutate({ mealId: (meal.mealId?._id || meal.mealId), index })}
+                  isSwapping={singleSwapMutation.isPending && singleSwapMutation.variables?.index === index}
+                  navigate={navigate}
+                />
+              ))}
+            </AnimatePresence>
+          )}
+        </div>
+      </main>
     </div>
+  );
+};
+
+const MealCard = ({ meal, index, onLog, onSwap, isSwapping, navigate }) => {
+  const mealId = meal.mealId?._id || meal.mealId;
+  const isGhost = !meal.mealId;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
+      className={`group bg-white rounded-[3.5rem] shadow-xl shadow-gray-200/40 border border-gray-100 overflow-hidden flex flex-col hover:shadow-2xl transition-all duration-700 relative ${meal.eaten ? 'ring-4 ring-green-500/10' : ''}`}
+    >
+      {/* Visual Header */}
+      <div className="h-64 relative overflow-hidden">
+        <img 
+          src={`https://image.pollinations.ai/prompt/${encodeURIComponent(meal.name + ' delicious professional food photography, minimalist high-end wellness style')}?width=800&height=600&nologo=true`}
+          alt={meal.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+          onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop"; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        
+        <div className="absolute top-6 left-6">
+          <span className="bg-white/10 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border border-white/20">
+            {meal.type}
+          </span>
+        </div>
+
+        <div className="absolute bottom-6 left-8 right-8 flex justify-between items-end">
+          <div>
+            <h3 className="text-2xl font-black text-white leading-tight mb-2 tracking-tight">
+              {meal.name}
+            </h3>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 text-white/90 text-xs font-bold">
+                <FaFire className="text-orange-400" /> {meal.calories}
+              </div>
+              <div className="flex items-center gap-1.5 text-white/90 text-xs font-bold">
+                <FaMoneyBillWave className="text-green-400" /> {meal.cost_ghs} GHS
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={onSwap}
+            disabled={isSwapping}
+            className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white border border-white/20 hover:bg-white hover:text-gray-900 transition-all active:scale-90"
+          >
+            {isSwapping ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <FaSync size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-10 flex-1 flex flex-col">
+        <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-1">
+          <FaLeaf className="inline text-green-500 mr-2 opacity-50" />
+          {meal.reason}
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                if (isGhost) {
+                  alert("This meal reference is outdated due to the price update. Please use the 'Refresh Plan' button at the top of the grid.");
+                  return;
+                }
+                navigate(`/recipe/${mealId}`);
+              }}
+              className={`flex-1 font-black py-5 rounded-[1.8rem] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl ${
+                isGhost ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-black shadow-gray-200'
+              }`}
+            >
+              Prepare <FaChevronRight size={12} />
+            </button>
+            <button 
+              onClick={() => onLog({ mealId, eaten: !meal.eaten })}
+              className={`w-16 rounded-[1.8rem] flex items-center justify-center transition-all border-2 ${
+                meal.eaten 
+                  ? 'bg-green-500 border-green-500 text-white' 
+                  : 'bg-white border-gray-100 text-gray-400 hover:border-green-500 hover:text-green-500'
+              }`}
+            >
+              <FaCheckCircle size={24} />
+            </button>
+          </div>
+
+          {meal.eaten && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="flex gap-2 justify-center pt-2"
+            >
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => onLog({ mealId, eaten: true, rating: star })}
+                  className={`text-2xl transition-all hover:scale-125 ${
+                    (meal.rating || 0) >= star ? 'text-amber-400' : 'text-gray-200'
+                  }`}
+                >
+                  ★
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 };
 
