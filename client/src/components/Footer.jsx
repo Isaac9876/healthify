@@ -1,79 +1,84 @@
 import React from 'react';
-import { FaHeart, FaTwitter, FaInstagram, FaFacebook, FaLeaf, FaLinkedin, FaGithub } from 'react-icons/fa';
+import { FaHeart, FaTwitter, FaInstagram, FaLeaf, FaDiscord, FaGithub } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+
+const FooterLink = ({ to, label }) => (
+  <li>
+    <Link to={to} className="text-sm font-medium text-gray-500 hover:text-green-500 transition-colors">
+      {label}
+    </Link>
+  </li>
+);
+
+const SocialLink = ({ icon, href }) => (
+  <a href={href} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/30 transition-all">
+    {icon}
+  </a>
+);
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-950 text-white pt-20 pb-10 border-t border-white/5">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          <div className="col-span-1 md:col-span-1">
-            <Link to="/" className="flex items-center space-x-2 text-2xl font-bold tracking-tight text-white mb-6 group">
-              <div className="bg-green-600 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
+    <footer className="bg-gray-900 text-white pt-32 pb-20 overflow-hidden relative">
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-white/10" />
+      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-green-500/5 rounded-full blur-[120px]" />
+      
+      <div className="container mx-auto px-6">
+        <div className="grid lg:grid-cols-12 gap-20 mb-32">
+          <div className="lg:col-span-5">
+            <div className="flex items-center gap-3 mb-10">
+              <div className="bg-green-600 p-2.5 rounded-xl shadow-xl shadow-green-900/40">
                 <FaLeaf className="text-white text-xl" />
               </div>
-              <span className="bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">Healthify</span>
-            </Link>
-            <p className="text-gray-400 text-sm leading-relaxed mb-6">
-              Transforming lives through AI-driven nutrition. Get personalized meal plans and habit tracking at your fingertips.
-            </p>
-            <div className="flex space-x-4">
-              <a href="#" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-green-600 transition-all duration-300">
-                <FaTwitter size={18} />
-              </a>
-              <a href="#" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-green-600 transition-all duration-300">
-                <FaInstagram size={18} />
-              </a>
-              <a href="#" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-green-600 transition-all duration-300">
-                <FaLinkedin size={18} />
-              </a>
-              <a href="#" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-green-600 transition-all duration-300">
-                <FaGithub size={18} />
-              </a>
+              <span className="text-xl font-black tracking-[0.2em] uppercase">Health<span className="text-green-500">Mate</span></span>
+            </div>
+            <h2 className="text-4xl lg:text-5xl font-black leading-tight tracking-tighter mb-10">
+              Precision <br/> Biological <br/> <span className="text-green-500">Optimization</span>.
+            </h2>
+            <div className="flex gap-6">
+              <SocialLink icon={<FaInstagram />} href="#" />
+              <SocialLink icon={<FaTwitter />} href="#" />
+              <SocialLink icon={<FaDiscord />} href="#" />
+              <SocialLink icon={<FaGithub />} href="#" />
             </div>
           </div>
-          
-          <div>
-            <h4 className="text-sm font-black uppercase tracking-widest text-white mb-6">Platform</h4>
-            <ul className="space-y-4 text-sm text-gray-400 font-medium">
-              <li><Link to="/" className="hover:text-green-400 transition">Dashboard</Link></li>
-              <li><Link to="/tracker" className="hover:text-green-400 transition">Health Tracker</Link></li>
-              <li><Link to="/history" className="hover:text-green-400 transition">Meal History</Link></li>
-              <li><Link to="/profile" className="hover:text-green-400 transition">User Profile</Link></li>
-            </ul>
-          </div>
 
-          <div>
-            <h4 className="text-sm font-black uppercase tracking-widest text-white mb-6">Support</h4>
-            <ul className="space-y-4 text-sm text-gray-400 font-medium">
-              <li><a href="#" className="hover:text-green-400 transition">Help Center</a></li>
-              <li><a href="#" className="hover:text-green-400 transition">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-green-400 transition">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-green-400 transition">Contact Us</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-black uppercase tracking-widest text-white mb-6">Newsletter</h4>
-            <p className="text-xs text-gray-500 font-bold mb-4 uppercase tracking-tighter">Stay updated with health tips</p>
-            <div className="flex gap-2">
-              <input 
-                type="email" 
-                placeholder="Email address" 
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs w-full focus:outline-none focus:border-green-500 transition"
-              />
-              <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl transition shadow-lg shadow-green-900/20">
-                <FaHeart size={14} />
-              </button>
+          <div className="lg:col-span-7">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-12 lg:gap-24">
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 mb-8">Ecosystem</h4>
+                <ul className="space-y-4">
+                  <FooterLink to="/" label="Neural Stream" />
+                  <FooterLink to="/progress" label="Bio-Metrics" />
+                  <FooterLink to="/grocery" label="Supply Chain" />
+                  <FooterLink to="/history" label="Archives" />
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 mb-8">Node Settings</h4>
+                <ul className="space-y-4">
+                  <FooterLink to="/profile" label="User Identity" />
+                  <FooterLink to="/edit-profile" label="Calibration" />
+                  <FooterLink to="/tracker" label="Vitals Log" />
+                </ul>
+              </div>
+              <div className="col-span-2 md:col-span-1">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 mb-8">Protocol Info</h4>
+                <p className="text-sm font-medium text-gray-500 leading-relaxed">
+                  HealthMate is a high-performance nutritional synchronization engine designed for elite biological maintenance.
+                </p>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div className="border-t border-white/5 pt-10 flex flex-col md:flex-row justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-gray-600">
-          <p>&copy; {new Date().getFullYear()} Healthify Labs. All rights reserved.</p>
-          <p className="flex items-center mt-4 md:mt-0">
-            Designed & Developed with <FaHeart className="text-green-600 mx-2 animate-pulse" /> for Excellence.
+
+        <div className="flex flex-col md:flex-row justify-between items-center gap-10 pt-10 border-t border-white/5">
+          <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
+            © {new Date().getFullYear()} HealthMate Operations. All rights reserved.
           </p>
+          <div className="flex gap-8 text-[10px] font-black text-gray-600 uppercase tracking-widest">
+            <a href="#" className="hover:text-green-500 transition-colors">Privacy Protocol</a>
+            <a href="#" className="hover:text-green-500 transition-colors">Service Level Agreement</a>
+          </div>
         </div>
       </div>
     </footer>

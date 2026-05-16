@@ -9,6 +9,11 @@ const MealSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  type: {
+    type: String,
+    enum: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Extra', 'Any'],
+    default: 'Any'
+  },
   tags: [String],
   calories: {
     type: Number,
@@ -34,5 +39,8 @@ const MealSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
+MealSchema.index({ cost_ghs: 1, prep_time_min: 1 });
+MealSchema.index({ tags: 1 });
 
 module.exports = mongoose.model('Meal', MealSchema);

@@ -1,4 +1,4 @@
-# Healthify
+# HealthMate
 
 Your AI-powered nutrition assistant with meal planning, calorie tracking, and hydration goals. Frontend is React + Vite; backend is Express + MongoDB; AI plans use Gemini.
 

@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   FaUser, FaBirthdayCake, FaUtensils, FaHeart, FaFire, 
-  FaTint, FaSave, FaUserCircle, FaVenusMars, FaMoneyBillWave, FaClock, FaTrash 
+  FaTint, FaSave, FaUserCircle, FaVenusMars, FaMoneyBillWave, FaClock, FaTrash, FaArrowLeft
 } from 'react-icons/fa';
 
 const EditProfile = () => {
@@ -34,7 +34,6 @@ const EditProfile = () => {
     medicalConditions: ''
   });
 
-  // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -46,7 +45,6 @@ const EditProfile = () => {
     return () => unsubscribe();
   }, [navigate]);
 
-  // 2. Fetch current profile
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile', user?.uid],
     queryFn: async () => {
@@ -75,7 +73,6 @@ const EditProfile = () => {
     retry: false
   });
 
-  // 3. Update Mutation
   const updateMutation = useMutation({
     mutationFn: async (data) => {
       const res = await api.put('/auth/profile', { 
@@ -87,49 +84,40 @@ const EditProfile = () => {
     },
     onSuccess: (data) => {
       setNewTargets(data.targets);
+      // Invalidate both profile and meal plan so changes reflect everywhere
       queryClient.invalidateQueries(['profile', user?.uid]);
       queryClient.invalidateQueries(['mealPlan']);
-      alert('Profile updated successfully!');
+      alert('Your settings have been saved!');
     },
     onError: (error) => {
-      const msg = error.response?.data?.error || error.response?.data?.msg || 'Failed to update profile. Please try again.';
+      const msg = error.response?.data?.error || error.response?.data?.msg || 'Failed to update. Please try again.';
       alert(msg);
     }
   });
 
   const handleDeleteProfile = async () => {
-    if (!window.confirm("Are you absolutely sure? This will permanently remove your meal plans, progress history, and account data. This cannot be undone.")) {
+    if (!window.confirm("Are you sure? This will delete your meal plans and all your progress. This cannot be undone.")) {
       return;
     }
 
     setDeleting(true);
     try {
       const uid = user.uid;
-
-      // 1. Delete from MongoDB first
       await api.delete(`/auth/profile/${uid}`);
-      
-      // 2. Clear all local state and cache
       queryClient.clear();
-      
-      // 3. Delete from Firebase
       const currentUser = auth.currentUser;
       if (currentUser) {
         try {
           await deleteUser(currentUser);
         } catch (fbErr) {
-          console.error("Firebase delete error:", fbErr);
-          // If Firebase delete fails (e.g. re-auth required), at least sign out
           await signOut(auth);
         }
       }
-      
-      alert('Your account and all associated data have been permanently deleted.');
+      alert('Your account and all data have been deleted.');
       navigate('/login');
     } catch (err) {
-      console.error("Error during deletion process:", err);
-      const msg = err.response?.data?.msg || 'Failed to delete profile. Please try again later.';
-      alert(msg);
+      console.error("Deletion error:", err);
+      alert('Failed to delete account. Please try again later.');
     }
     setDeleting(false);
   };
@@ -150,157 +138,177 @@ const EditProfile = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50/50 py-16 px-4">
-      <div className="max-w-4xl mx-auto">
-        <header className="text-center mb-12">
-          <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="mb-6 inline-block">
-            <FaUserCircle className="text-8xl text-green-100" />
-          </motion.div>
-          <h1 className="text-4xl font-black text-gray-900 mb-2">Account Settings</h1>
-          <p className="text-gray-500 text-lg">Manage your physical profile and nutrition goals.</p>
+    <div className="min-h-screen bg-white font-sans selection:bg-green-100">
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-green-50/20 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:32px_32px] opacity-10" />
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-24">
+        <header className="mb-20">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-green-600 hover:shadow-lg transition-all">
+                  <FaArrowLeft size={12} />
+                </button>
+                <span className="text-green-600 font-black uppercase tracking-[0.3em] text-[10px]">Settings</span>
+              </div>
+              <h1 className="text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-none mb-6">
+                My <span className="text-green-600">Profile</span>.
+              </h1>
+              <p className="text-gray-400 text-xl font-medium max-w-lg leading-tight">
+                Update your details and goals to keep your meal plans perfect for you.
+              </p>
+            </div>
+
+            <div className="bg-gray-900 text-white p-10 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.15)] flex items-center gap-12 min-w-[320px]">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center text-green-500 text-3xl">
+                  <FaUserCircle />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Status</p>
+                  <p className="text-2xl font-black">{profile ? 'Active' : 'Wait...'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </header>
 
         {newTargets && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-6 bg-green-600 text-white rounded-[2rem] shadow-xl shadow-green-100 flex items-center justify-between"
+            className="mb-12 p-10 bg-green-600 text-white rounded-[3rem] shadow-2xl shadow-green-100 flex items-center justify-between"
           >
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-1">Targets Updated</p>
-              <h3 className="text-xl font-black">Your new daily target: {newTargets.calories} kcal</h3>
+            <div className="flex items-center gap-8">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-3xl"><FaFire /></div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-1">New Goal Set</p>
+                <h3 className="text-4xl font-black">Target: {newTargets.calories} kcal per day</h3>
+              </div>
             </div>
-            <button onClick={() => setNewTargets(null)} className="text-white/50 hover:text-white font-bold px-4 py-2 bg-white/10 rounded-xl">Got it</button>
+            <button onClick={() => setNewTargets(null)} className="text-white font-black px-8 py-4 bg-black/20 rounded-2xl hover:bg-black/30 transition-all">Dismiss</button>
           </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-[3rem] shadow-2xl border border-gray-100 overflow-hidden">
-          <div className="grid md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="bg-white rounded-[4rem] shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="grid lg:grid-cols-2">
             
-            {/* Left Column: Physical */}
-            <div className="p-10 lg:p-12 border-b md:border-b-0 md:border-r border-gray-100 space-y-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-50 p-2.5 rounded-xl text-green-600">
-                  <FaUser />
-                </div>
-                <h2 className="text-xl font-black text-gray-900">Physical Profile</h2>
+            {/* Left Column: Body Info */}
+            <div className="p-12 lg:p-16 border-b lg:border-b-0 lg:border-r border-gray-100 space-y-12">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 shadow-sm"><FaUser /></div>
+                <h2 className="text-3xl font-black text-gray-900 tracking-tight">Body Info</h2>
               </div>
 
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-2xl transition-all outline-none font-bold" />
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Full Name</label>
+                  <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-[1.8rem] transition-all outline-none font-black text-xl text-gray-900 shadow-inner" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FaVenusMars /> Gender</label>
-                    <select name="gender" value={formData.gender} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><FaVenusMars /> Gender</label>
+                    <select name="gender" value={formData.gender} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg appearance-none">
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FaBirthdayCake /> Age</label>
-                    <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold" />
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><FaBirthdayCake /> Age</label>
+                    <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Height (cm)</label>
-                    <input type="number" name="height" value={formData.height} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold" />
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Height (cm)</label>
+                    <input type="number" name="height" value={formData.height} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Weight (kg)</label>
-                    <input type="number" name="weight" value={formData.weight} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold" />
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Weight (kg)</label>
+                    <input type="number" name="weight" value={formData.weight} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target (kg)</label>
-                    <input type="number" name="targetWeight" value={formData.targetWeight} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold" />
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Target (kg)</label>
+                    <input type="number" name="targetWeight" value={formData.targetWeight} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Activity Level</label>
-                  <select name="activityLevel" value={formData.activityLevel} onChange={handleChange} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Activity Level</label>
+                  <select name="activityLevel" value={formData.activityLevel} onChange={handleChange} className="w-full p-6 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg appearance-none">
                     <option value="Sedentary">Sedentary (Little exercise)</option>
                     <option value="Lightly Active">Lightly Active</option>
                     <option value="Moderately Active">Moderately Active</option>
                     <option value="Very Active">Very Active</option>
                   </select>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Medical Conditions</label>
-                  <input type="text" name="medicalConditions" value={formData.medicalConditions} onChange={handleChange} placeholder="e.g. None" className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold" />
-                </div>
               </div>
             </div>
 
-            {/* Right Column: Preferences */}
-            <div className="p-10 lg:p-12 bg-gray-50/30 space-y-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600">
-                  <FaUtensils />
-                </div>
-                <h2 className="text-xl font-black text-gray-900">Nutrition Goals</h2>
+            {/* Right Column: Goals */}
+            <div className="p-12 lg:p-16 bg-gray-50/30 space-y-12">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm"><FaUtensils /></div>
+                <h2 className="text-3xl font-black text-gray-900 tracking-tight">Goals & Budget</h2>
               </div>
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FaMoneyBillWave /> Budget (GHS)</label>
-                    <input type="number" name="budget_per_day_ghs" value={formData.budget_per_day_ghs} onChange={handleChange} className="w-full p-4 bg-white border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold shadow-sm" />
+              <div className="space-y-8">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><FaMoneyBillWave /> Daily Budget (GHS)</label>
+                    <input type="number" name="budget_per_day_ghs" value={formData.budget_per_day_ghs} onChange={handleChange} className="w-full p-6 bg-white border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg shadow-sm" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FaTint /> Water Target</label>
-                    <input type="number" name="hydrationTarget" value={formData.hydrationTarget} onChange={handleChange} className="w-full p-4 bg-white border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold shadow-sm" />
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><FaTint /> Water Goal</label>
+                    <input type="number" name="hydrationTarget" value={formData.hydrationTarget} onChange={handleChange} className="w-full p-6 bg-white border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg shadow-sm" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FaHeart /> Health Goal</label>
-                  <select name="healthGoals" value={formData.healthGoals} onChange={handleChange} className="w-full p-4 bg-white border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold shadow-sm">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><FaHeart /> Health Goal</label>
+                  <select name="healthGoals" value={formData.healthGoals} onChange={handleChange} className="w-full p-6 bg-white border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg appearance-none shadow-sm">
                     <option value="Weight Loss">Weight Loss</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Weight Gain">Weight Gain</option>
+                    <option value="Maintenance">Keep Weight</option>
+                    <option value="Weight Gain">Gain Weight</option>
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Allergies (comma separated)</label>
-                  <input type="text" name="allergies" value={formData.allergies} onChange={handleChange} placeholder="Peanuts..." className="w-full p-4 bg-white border-2 border-transparent focus:border-green-500 rounded-2xl outline-none font-bold shadow-sm" />
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Allergies (Avoid these)</label>
+                  <input type="text" name="allergies" value={formData.allergies} onChange={handleChange} placeholder="e.g. Peanuts, Milk..." className="w-full p-6 bg-white border-2 border-transparent focus:border-green-500 rounded-[1.8rem] outline-none font-black text-lg shadow-sm" />
                 </div>
 
-                <div className="pt-6 space-y-4">
+                <div className="pt-10 space-y-6">
                   <button 
                     type="submit" 
                     disabled={updateMutation.isLoading || deleting}
-                    className="w-full bg-green-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-green-100 hover:bg-green-700 transition-all flex items-center justify-center gap-3 text-lg"
+                    className="w-full bg-gray-900 text-white font-black py-8 rounded-[2.5rem] shadow-[0_40px_80px_rgba(0,0,0,0.15)] hover:bg-black transition-all flex items-center justify-center gap-4 text-xl group"
                   >
                     {updateMutation.isLoading ? (
-                      <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                      <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full" />
                     ) : (
-                      <><FaSave /> {profile ? 'Update Profile' : 'Save Changes'}</>
+                      <>Save My Settings <FaSave className="group-hover:scale-110 transition-transform" /></>
                     )}
                   </button>
 
-                  {profile && (
-                    <button 
-                      type="button"
-                      onClick={handleDeleteProfile}
-                      disabled={updateMutation.isLoading || deleting}
-                      className="w-full bg-white text-red-600 border-2 border-red-50 font-black py-4 rounded-[2rem] hover:bg-red-50 transition-all flex items-center justify-center gap-3"
-                    >
-                      {deleting ? (
-                        <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
-                      ) : (
-                        <><FaTrash size={14} /> Delete Account</>
-                      )}
-                    </button>
-                  )}
+                  <button 
+                    type="button"
+                    onClick={handleDeleteProfile}
+                    disabled={updateMutation.isLoading || deleting}
+                    className="w-full bg-white text-red-600 border border-red-50 font-black py-5 rounded-[2rem] hover:bg-red-50 transition-all flex items-center justify-center gap-3"
+                  >
+                    {deleting ? (
+                      <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
+                    ) : (
+                      <><FaTrash size={14} /> Delete Account</>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

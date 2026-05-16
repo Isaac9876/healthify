@@ -16,7 +16,7 @@ app.use(express.json());
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Healthify API is running');
+  res.send('HealthMate API is running');
 });
 
 // Define Routes

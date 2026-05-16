@@ -81,27 +81,39 @@ router.delete('/profile/:uid', async (req, res) => {
     const { uid } = req.params;
     console.log(`Starting full deletion for UID: ${uid}`);
 
+    // Find and delete the primary user document
     const user = await User.findOneAndDelete({ uid });
     if (!user) {
-      console.log(`User ${uid} not found in MongoDB, but continuing to clear potential orphaned data.`);
+      console.log(`User ${uid} not found in MongoDB. Checking associated data for cleanup.`);
     }
     
-    // Also delete user's meal plans and progress data
+    // Explicitly import models to ensure they are registered
     const MealPlan = require('../models/MealPlan');
     const Progress = require('../models/Progress');
     const MealLog = require('../models/MealLog');
     const MealFeedback = require('../models/MealFeedback');
     
-    const results = await Promise.all([
-      MealPlan.deleteMany({ userId: uid }),
-      Progress.deleteMany({ userId: uid }),
-      MealLog.deleteMany({ userId: uid }),
-      MealFeedback.deleteMany({ userId: uid })
-    ]);
+    // Delete all linked data
+    const pDelete = await MealPlan.deleteMany({ userId: uid });
+    const prDelete = await Progress.deleteMany({ userId: uid });
+    const lDelete = await MealLog.deleteMany({ userId: uid });
+    const fDelete = await MealFeedback.deleteMany({ userId: uid });
 
-    console.log(`Deletion results for ${uid}:`, results.map(r => r.deletedCount));
+    console.log(`[DELETION COMPLETE] UID: ${uid}`);
+    console.log(`- User: ${user ? 'Deleted' : 'Already gone'}`);
+    console.log(`- Meal Plans: ${pDelete.deletedCount}`);
+    console.log(`- Progress Logs: ${prDelete.deletedCount}`);
+    console.log(`- Meal Logs: ${lDelete.deletedCount}`);
+    console.log(`- Feedback: ${fDelete.deletedCount}`);
 
-    res.json({ msg: 'Profile and associated data deleted successfully' });
+    res.json({ 
+      msg: 'Account and all associated data permanently deleted.',
+      stats: {
+        plans: pDelete.deletedCount,
+        progress: prDelete.deletedCount,
+        logs: lDelete.deletedCount
+      }
+    });
   } catch (err) {
     console.error(`Deletion error for ${req.params.uid}:`, err.message);
     res.status(500).json({ msg: 'Server Error' });

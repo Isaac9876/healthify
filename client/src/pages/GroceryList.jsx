@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaShoppingCart, FaClipboard, FaCheck, FaInfoCircle, 
   FaBox, FaLeaf, FaBreadSlice, FaEgg, FaPepperHot, FaDotCircle,
-  FaDownload, FaPrint, FaStore, FaMobileAlt, FaChevronRight
+  FaDownload, FaPrint, FaStore, FaMobileAlt, FaChevronRight, FaArrowLeft
 } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const categoryIcons = {
   protein: <FaEgg />,
@@ -47,7 +48,7 @@ const CategoryCard = ({ cat, items, delay, checkedItems, onToggle }) => (
       </div>
       <div>
         <h3 className="text-2xl font-black text-gray-900 capitalize tracking-tight">{cat}</h3>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{items.length} Essential Items</p>
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{items.length} Items</p>
       </div>
     </div>
     
@@ -70,7 +71,6 @@ const CategoryCard = ({ cat, items, delay, checkedItems, onToggle }) => (
               <span className={`text-lg font-black tracking-tight text-gray-800 ${checkedItems[item.name] ? 'line-through' : ''}`}>
                 {item.name}
               </span>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">In Season</p>
             </div>
           </div>
           <div className="bg-white shadow-sm border border-gray-100 px-4 py-2 rounded-xl text-xs font-black text-gray-500 whitespace-nowrap">
@@ -79,16 +79,12 @@ const CategoryCard = ({ cat, items, delay, checkedItems, onToggle }) => (
         </button>
       ))}
     </div>
-    
-    <div className="p-6 bg-gray-50/30 border-t border-gray-50/50 text-center">
-      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">End of Section</span>
-    </div>
   </motion.div>
 );
 
 const GroceryList = () => {
   const [checkedItems, setCheckedItems] = useState({});
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'focus'
+  const navigate = useNavigate();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['groceryList', auth.currentUser?.uid],
@@ -96,7 +92,8 @@ const GroceryList = () => {
       const res = await api.get(`/meals/grocery/week?userId=${auth.currentUser.uid}`);
       return res.data;
     },
-    enabled: !!auth.currentUser
+    enabled: !!auth.currentUser,
+    staleTime: 1000 * 60 * 30,
   });
 
   const toggleItem = (name) => {
@@ -105,7 +102,7 @@ const GroceryList = () => {
 
   const copyToClipboard = () => {
     if (!data?.items_by_category) return;
-    let text = "My Grocery List - Healthify\n\n";
+    let text = "My Grocery List - HealthMate\n\n";
     Object.entries(data.items_by_category).forEach(([cat, items]) => {
       text += `${cat.toUpperCase()}:\n`;
       items.forEach(item => {
@@ -135,9 +132,9 @@ const GroceryList = () => {
           <FaShoppingCart className="text-gray-200 text-4xl" />
         </div>
         <h2 className="text-4xl font-black text-gray-900 mb-4 tracking-tight">Your cart is empty.</h2>
-        <p className="text-gray-500 mb-10 text-xl leading-relaxed">We couldn't find any active meal plans for this week. Start planning to generate your intelligent grocery list.</p>
+        <p className="text-gray-500 mb-10 text-xl leading-relaxed">Please plan your meals first to see your shopping list here.</p>
         <button 
-          onClick={() => window.location.href = '/'} 
+          onClick={() => navigate('/')} 
           className="bg-gray-900 text-white font-black py-5 px-12 rounded-[2rem] shadow-2xl shadow-gray-200 hover:bg-black transition-all active:scale-95 text-lg"
         >
           Plan Your Week
@@ -152,52 +149,53 @@ const GroceryList = () => {
 
   return (
     <div className="bg-white min-h-screen pb-32 font-sans print:p-0 print:bg-white">
-      {/* Professional Header */}
-      <header className="pt-20 pb-32 bg-gray-50/50 border-b border-gray-100 print:hidden">
-        <div className="container mx-auto px-6">
+      <header className="pt-20 pb-40 bg-gray-50/50 border-b border-gray-100 relative overflow-hidden print:hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:32px_32px] opacity-20" />
+        <div className="container mx-auto px-6 relative z-10">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
             <div>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 mb-4">
-                <span className="w-10 h-[2px] bg-green-600" />
-                <span className="text-green-600 font-black uppercase tracking-[0.3em] text-[10px]">Smart Inventory</span>
-              </motion.div>
-              <h1 className="text-5xl lg:text-7xl font-black text-gray-900 tracking-tighter">Grocery <span className="text-green-600">Concierge</span>.</h1>
-              <div className="flex items-center gap-6 mt-6">
-                <div className="flex items-center gap-2 text-gray-500 font-bold bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <FaStore className="text-green-600" />
-                  <span>{data.meals_included} Meals Optimized</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-500 font-bold bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <FaMobileAlt className="text-blue-500" />
-                  <span>Ready for Market</span>
-                </div>
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-green-600 hover:shadow-lg transition-all">
+                  <FaArrowLeft size={12} />
+                </button>
+                <span className="text-green-600 font-black uppercase tracking-[0.3em] text-[10px]">Weekly Shopping List</span>
               </div>
+              <h1 className="text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-none mb-6">
+                My <span className="text-green-600">Groceries</span>.
+              </h1>
+              <p className="text-gray-400 text-xl font-medium max-w-lg leading-tight">
+                Everything you need to buy for your meals this week.
+              </p>
             </div>
 
-            <div className="w-full lg:w-auto flex flex-col gap-4">
-              <div className="bg-gray-900 text-white p-8 rounded-[2.5rem] shadow-2xl shadow-gray-200 flex items-center justify-between min-w-[320px]">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Estimated Spend</p>
-                  <p className="text-4xl font-black text-white">{data.total_cost_ghs} <span className="text-sm font-normal opacity-50 uppercase">ghs</span></p>
-                </div>
-                <div className="flex gap-2">
-                  <ActionButton onClick={copyToClipboard} icon={<FaClipboard />} title="Copy" />
-                  <ActionButton onClick={handlePrint} icon={<FaPrint />} title="Print" />
-                </div>
-              </div>
-              
+            <div className="flex flex-col gap-6 min-w-[380px]">
               {/* Progress Bar */}
-              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Shopping Progress</span>
-                  <span className="text-sm font-black text-green-600">{progress}%</span>
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Shopping Progress</span>
+                  <span className="text-xs font-black text-green-600">{progress}% Done</span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
                     className="h-full bg-green-600"
                   />
+                </div>
+                <p className="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{checkedCount} of {totalItems} items collected</p>
+              </div>
+
+              <div className="bg-gray-900 text-white p-10 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.15)] flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Estimated Cost</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-5xl font-black">{data.total_cost_ghs}</span>
+                    <span className="text-xs opacity-50 font-bold uppercase ml-1">GHS</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <ActionButton onClick={copyToClipboard} icon={<FaClipboard size={14} />} title="Copy" />
+                  <ActionButton onClick={handlePrint} icon={<FaPrint size={14} />} title="Print" />
                 </div>
               </div>
             </div>
@@ -205,7 +203,6 @@ const GroceryList = () => {
         </div>
       </header>
 
-      {/* Grocery Grid */}
       <main className="container mx-auto px-6 -mt-16 relative z-10 print:mt-0">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <AnimatePresence>
@@ -223,18 +220,8 @@ const GroceryList = () => {
         </div>
       </main>
 
-      {/* Floating Focus Mode Button (Mobile Only) */}
-      <button 
-        className="md:hidden fixed bottom-8 right-6 bg-gray-900 text-white p-6 rounded-full shadow-2xl z-50 flex items-center gap-3 active:scale-95 transition-all print:hidden"
-        onClick={() => setViewMode(viewMode === 'grid' ? 'focus' : 'grid')}
-      >
-        <FaMobileAlt />
-        <span className="font-black text-sm uppercase tracking-widest">Store Mode</span>
-      </button>
-
-      {/* Print-only Footer */}
       <footer className="hidden print:block mt-20 border-t pt-10 text-center text-gray-400 text-sm font-bold">
-        <p>Generated by Healthify AI - Your Personal Nutritionist</p>
+        <p>Generated by HealthMate AI - Your Personal Nutritionist</p>
       </footer>
     </div>
   );

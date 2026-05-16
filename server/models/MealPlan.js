@@ -44,4 +44,7 @@ const MealPlanSchema = new mongoose.Schema({
   },
 });
 
+// Index for faster lookups by user and date
+MealPlanSchema.index({ userId: 1, date: 1 });
+
 module.exports = mongoose.model('MealPlan', MealPlanSchema);

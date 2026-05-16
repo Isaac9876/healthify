@@ -1,238 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
-import annotationPlugin from 'chartjs-plugin-annotation';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  FaWeight, FaTint, FaSmile, FaHistory, FaPlus, 
-  FaCalendarAlt, FaChartArea, FaArrowUp, FaArrowDown, FaMinus,
-  FaLightbulb, FaHeartbeat, FaInfoCircle, FaExclamationTriangle
+  FaWeight, FaRulerVertical, FaHeartbeat, FaSmile, 
+  FaInfoCircle, FaSave, FaCheckCircle, FaExclamationCircle,
+  FaWalking, FaWater, FaBed, FaBrain, FaArrowLeft, FaUserCircle, FaArrowRight
 } from 'react-icons/fa';
-import { Link } from 'react-router-dom';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  annotationPlugin
-);
+import api from '../api';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Tracker = () => {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [formData, setFormData] = useState({
-    weight: '',
-    waterIntake: '',
-    mood: ''
-  });
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [hasProfile, setHasProfile] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const fetchData = async (uid) => {
-    try {
-      const t = Date.now();
-      const [historyRes, profileRes] = await Promise.allSettled([
-        api.get(`/progress/${uid}?t=${t}`),
-        api.get(`/auth/profile/${uid}?t=${t}`)
-      ]);
-      
-      if (historyRes.status === 'fulfilled') {
-        setHistory(Array.isArray(historyRes.value.data) ? historyRes.value.data : []);
-      }
-      if (profileRes.status === 'fulfilled') {
-        setProfile(profileRes.value.data);
-      }
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
-  };
+  const [vitals, setVitals] = useState({
+    weight: '',
+    height: '',
+    mood: 'Good',
+    water: 2,
+    sleep: 8,
+    steps: 5000
+  });
+
+  const [hoveredMood, setHoveredMood] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        await fetchData(currentUser.uid);
+        try {
+          const res = await api.get(`/auth/profile/${currentUser.uid}`);
+          if (res.data) {
+            setHasProfile(true);
+            setVitals(prev => ({
+              ...prev,
+              weight: res.data.weight || '',
+              height: res.data.height || '',
+              mood: res.data.lastMood || 'Good'
+            }));
+          }
+        } catch (err) {
+          if (err.response?.status === 404) {
+            setHasProfile(false);
+          }
+          console.error("Tracker profile fetch error:", err);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        navigate('/login');
       }
-      setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [navigate]);
 
-  const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleMoodSelect = (mood) => {
-    setFormData(prev => ({ ...prev, mood }));
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (!user) return;
-    setSubmitting(true);
-
+    setSaving(true);
+    setMessage({ type: '', text: '' });
     try {
-      const today = new Date().toISOString().split('T')[0];
-      await api.post('/progress', {
+      await api.put('/auth/profile', {
         uid: user.uid,
-        date: today,
-        weight: formData.weight,
-        waterIntake: formData.waterIntake,
-        mood: formData.mood
+        weight: vitals.weight,
+        height: vitals.height,
+        lastMood: vitals.mood
       });
-      await fetchData(user.uid);
-      setFormData({ weight: '', waterIntake: '', mood: '' });
-      alert('Dashboard updated successfully!');
+      
+      queryClient.invalidateQueries(['profile', user.uid]);
+      queryClient.invalidateQueries(['mealPlan']);
+
+      setMessage({ type: 'success', text: 'Daily stats saved!' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (err) {
-      console.error("Error saving progress:", err);
-      alert('Failed to update dashboard. Please try again.');
+      console.error("Save error:", err);
+      setMessage({ type: 'error', text: 'Failed to save. Try again later.' });
+    } finally {
+      setSaving(false);
     }
-    setSubmitting(false);
   };
 
-  // BMI Calculation
-  const calculateBMI = (weight, height) => {
-    const w = parseFloat(weight);
-    const h = parseFloat(height);
-    if (!w || !h || h === 0) return 0;
-    const heightInMeters = h / 100;
-    return (w / (heightInMeters * heightInMeters)).toFixed(1);
-  };
-
-  const getBMICategory = (bmi) => {
-    const b = parseFloat(bmi);
-    if (!b || b === 0) return { label: 'Missing Info', color: 'text-gray-400' };
-    if (b < 18.5) return { label: 'Underweight', color: 'text-blue-500' };
-    if (b < 25) return { label: 'Normal', color: 'text-green-600' };
-    if (b < 30) return { label: 'Overweight', color: 'text-amber-500' };
-    return { label: 'Obese', color: 'text-red-500' };
-  };
-
-  const lastEntry = history.length > 0 ? history[history.length - 1] : null;
-  
-  // Logic: Prefer today's log weight, fallback to profile weight
-  const currentWeight = lastEntry?.weight || profile?.weight;
-  const currentHeight = profile?.height;
-  const targetWeight = profile?.targetWeight;
-
-  const bmiValue = calculateBMI(currentWeight, currentHeight);
-  const bmiCat = getBMICategory(bmiValue);
-  const hasProfileInfo = !!currentHeight && (!!currentWeight || !!profile?.weight);
-  const hasGoalInfo = !!targetWeight && !!currentWeight;
-
-  const chartData = {
-    labels: history.map(h => {
-      const d = new Date(h.date);
-      return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    }),
-    datasets: [
-      {
-        label: 'Weight',
-        data: history.map(h => h.weight || 0),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.05)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointHoverRadius: 8,
-        pointBackgroundColor: '#10b981',
-        borderWidth: 3,
-      },
-      {
-        label: 'Hydration',
-        data: history.map(h => h.waterIntake || 0),
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.05)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointHoverRadius: 8,
-        pointBackgroundColor: '#3b82f6',
-        borderWidth: 3,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { display: false },
-      annotation: {
-        annotations: {
-          goalLine: {
-            type: 'line',
-            yMin: parseFloat(targetWeight) || 0,
-            yMax: parseFloat(targetWeight) || 0,
-            borderColor: 'rgba(0,0,0,0.1)',
-            borderWidth: 2,
-            borderDash: [6, 6],
-            label: {
-              display: !!targetWeight,
-              content: 'Target',
-              position: 'end',
-              backgroundColor: 'rgba(0,0,0,0.4)',
-              color: 'white',
-              font: { size: 10, weight: 'bold' }
-            }
-          }
-        }
-      },
-      tooltip: {
-        backgroundColor: '#111827',
-        padding: 12,
-        cornerRadius: 12,
-        usePointStyle: true,
-      }
-    },
-    scales: {
-      y: {
-        grid: { color: '#f3f4f6', drawBorder: false },
-        ticks: { font: { weight: '600', family: 'Inter' }, color: '#9ca3af' }
-      },
-      x: {
-        grid: { display: false },
-        ticks: { font: { weight: '600', family: 'Inter' }, color: '#9ca3af' }
-      }
-    },
-  };
-
-  const getInsights = () => {
-    if (history.length < 3) return "Log a few more days to unlock smart health insights!";
-    const avgWater = history.reduce((acc, c) => acc + (c.waterIntake || 0), 0) / history.length;
-    const waterTarget = profile?.hydrationTarget || 8;
-    
-    if (avgWater < waterTarget * 0.7) {
-      return `You're averaging ${avgWater.toFixed(1)} glasses of water. Hydration is key to your ${profile?.healthGoals || 'goals'}.`;
-    }
-    
-    const weightTrend = history[history.length - 1].weight - history[0].weight;
-    if (weightTrend < 0 && profile?.healthGoals === 'Weight Loss') {
-      return "Fantastic! You're losing weight consistently. Keep following your plan.";
-    }
-    
-    return "Great consistency! You're building healthy habits one day at a time.";
-  };
+  const moods = [
+    { label: 'Great', emoji: '🤩', color: 'bg-green-500' },
+    { label: 'Good', emoji: '😊', color: 'bg-emerald-400' },
+    { label: 'Okay', emoji: '😐', color: 'bg-amber-400' },
+    { label: 'Bad', emoji: '😔', color: 'bg-orange-500' },
+    { label: 'Awful', emoji: '😫', color: 'bg-red-500' },
+  ];
 
   if (loading) return (
     <div className="flex justify-center items-center h-screen bg-white">
@@ -240,166 +100,201 @@ const Tracker = () => {
     </div>
   );
 
-  const moods = [
-    { label: 'Energetic', icon: '⚡' },
-    { label: 'Happy', icon: '😊' },
-    { label: 'Neutral', icon: '😐' },
-    { label: 'Tired', icon: '😴' },
-    { label: 'Stressed', icon: '😫' }
-  ];
+  if (!hasProfile) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-xl w-full text-center space-y-10"
+        >
+          <div className="w-32 h-32 bg-green-50 rounded-[2.5rem] flex items-center justify-center mx-auto text-green-600 shadow-xl shadow-green-100/50">
+            <FaUserCircle size={64} />
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-5xl lg:text-7xl font-black text-gray-900 tracking-tighter leading-tight">
+              Setup <span className="text-green-600">Profile</span>.
+            </h1>
+            <p className="text-gray-400 text-xl font-medium leading-relaxed">
+              You need to create your profile before you can track your health metrics.
+            </p>
+          </div>
+          <button 
+            onClick={() => navigate('/edit-profile')}
+            className="w-full bg-gray-900 text-white font-black py-8 rounded-[2.5rem] shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-4 text-xl group"
+          >
+            Create Profile Now <FaArrowRight className="group-hover:translate-x-2 transition-transform" />
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-gray-50/30 min-h-screen pb-24 font-sans">
-      <header className="bg-white pt-20 pb-28 border-b border-gray-100">
+    <div className="bg-gray-50/30 min-h-screen pb-32 font-sans">
+      <header className="bg-white pt-20 pb-32 border-b border-gray-100">
         <div className="container mx-auto px-6">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-12">
-            <div className="max-w-2xl">
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Advanced Analytics</motion.span>
-              <h1 className="text-5xl lg:text-7xl font-black text-gray-900 tracking-tight">Health <span className="text-green-600">Intelligence</span>.</h1>
-              
-              <div className="mt-8 p-6 bg-blue-50/50 rounded-3xl border border-blue-100 flex items-start gap-4 max-w-xl">
-                <FaLightbulb className="text-blue-500 mt-1 shrink-0" />
-                <div>
-                  <p className="text-sm font-black text-blue-900 uppercase tracking-widest mb-1">Coach's Insight</p>
-                  <p className="text-blue-800/80 leading-relaxed font-medium">{getInsights()}</p>
-                </div>
-              </div>
+          <div className="max-w-4xl">
+            <div className="flex items-center gap-3 mb-6">
+              <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-green-600 hover:shadow-lg transition-all">
+                <FaArrowLeft size={12} />
+              </button>
+              <span className="text-green-600 font-black uppercase tracking-[0.3em] text-[10px]">Daily Progress</span>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full lg:w-auto">
-              {/* BMI Card */}
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50 flex items-center gap-6 group relative overflow-hidden">
-                {!hasProfileInfo && (
-                  <Link to="/profile" className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <FaExclamationTriangle className="text-amber-500 mb-2" />
-                    <p className="text-[10px] font-black uppercase text-gray-900 tracking-widest">Setup Profile First</p>
-                  </Link>
-                )}
-                <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 text-2xl font-black">
-                  {parseFloat(bmiValue) > 0 ? bmiValue : '--'}
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Current BMI</p>
-                  <p className={`text-xl font-black ${bmiCat.color}`}>{bmiCat.label}</p>
-                </div>
-              </div>
-
-              {/* Goal Card */}
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50 flex items-center gap-6 group relative overflow-hidden">
-                {!hasGoalInfo && (
-                  <Link to="/profile" className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <FaInfoCircle className="text-blue-500 mb-2" />
-                    <p className="text-[10px] font-black uppercase text-gray-900 tracking-widest">Set Weight Goal</p>
-                  </Link>
-                )}
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
-                  <FaWeight size={24} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Goal Distance</p>
-                  <p className="text-xl font-black text-gray-900">
-                    {hasGoalInfo ? `${Math.abs(currentWeight - targetWeight).toFixed(1)} kg` : '--'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <h1 className="text-5xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-none mb-6">
+              My <span className="text-green-600">Health</span> Tracker.
+            </h1>
+            <p className="text-gray-500 text-xl font-medium leading-relaxed">
+              Log your weight, height, and mood to keep your healthy eating plan accurate.
+            </p>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-6 -mt-12">
-        <div className="grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-8 space-y-10">
-            {/* Chart */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-10 rounded-[3.5rem] shadow-2xl shadow-gray-200/50 border border-gray-100">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="bg-gray-900 p-3 rounded-2xl text-white"><FaChartArea /></div>
-                  <div>
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Performance Tracking</h2>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Weight vs Hydration Over Time</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="h-[450px] w-full">
-                {history.length > 0 ? (
-                  <Line data={chartData} options={chartOptions} />
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-300 border-4 border-dotted border-gray-50 rounded-[3rem]">
-                    <FaCalendarAlt size={64} className="mb-6 opacity-10" />
-                    <p className="text-xl font-black opacity-30">No Data Points Yet</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            {/* History */}
-            <div className="bg-white p-10 rounded-[3.5rem] shadow-xl shadow-gray-100 border border-gray-100">
-              <div className="flex items-center gap-4 mb-10">
-                <div className="bg-gray-100 p-3 rounded-2xl text-gray-900"><FaHistory /></div>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">History Log</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {history.slice().reverse().slice(0, 8).map((item, idx) => (
-                  <div key={item._id} className="p-6 rounded-[2rem] bg-gray-50/50 border border-transparent hover:border-gray-200 hover:bg-white transition-all flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl shadow-sm">
-                        {moods.find(m => m.label === item.mood)?.icon || '📅'}
-                      </div>
-                      <div>
-                        <p className="font-black text-gray-900">{new Date(item.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.mood || 'Standard'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-[9px] font-black text-gray-400 uppercase">Weight</p>
-                        <p className="font-black text-gray-900">{item.weight} kg</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-black text-gray-400 uppercase">Water</p>
-                        <p className="font-black text-blue-600">{item.waterIntake} gls</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-4">
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-10 rounded-[3.5rem] shadow-2xl shadow-gray-200/50 border border-gray-100 sticky top-24 overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-500 to-emerald-600" />
-              <div className="flex items-center gap-4 mb-10 pt-4">
-                <div className="bg-green-100 p-3 rounded-2xl text-green-600"><FaPlus /></div>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Today's Vitals</h2>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Body Weight (kg)</label>
-                  <input type="number" step="0.1" name="weight" value={formData.weight} onChange={handleChange} placeholder="0.0" className="w-full pl-6 pr-5 py-5 bg-gray-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-[1.5rem] outline-none font-black text-xl transition-all" required />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Water Intake (Glasses)</label>
-                  <input type="number" name="waterIntake" value={formData.waterIntake} onChange={handleChange} placeholder="0" className="w-full pl-6 pr-5 py-5 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-[1.5rem] outline-none font-black text-xl transition-all" required />
+      <main className="container mx-auto px-6 -mt-16">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <div className="lg:col-span-2">
+            <motion.form 
+              onSubmit={handleSave}
+              className="bg-white rounded-[4rem] shadow-2xl shadow-gray-200/50 border border-gray-100 p-12 lg:p-16"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
+                <div className="space-y-4">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                    <FaWeight className="text-green-600" /> Current Weight (kg)
+                  </label>
+                  <input 
+                    type="number" 
+                    value={vitals.weight}
+                    onChange={(e) => setVitals({...vitals, weight: e.target.value})}
+                    placeholder="e.g. 70"
+                    className="w-full bg-gray-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-3xl p-6 text-2xl font-black outline-none transition-all"
+                  />
                 </div>
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Current Mood</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {moods.map(m => (
-                      <button key={m.label} type="button" onClick={() => handleMoodSelect(m.label)} className={`p-4 rounded-2xl transition-all border-2 text-xl ${formData.mood === m.label ? 'bg-green-600 border-green-600 shadow-xl shadow-green-100 scale-105' : 'bg-gray-50 border-transparent hover:border-gray-200'}`}>{m.icon}</button>
-                    ))}
-                  </div>
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                    <FaRulerVertical className="text-green-600" /> Current Height (cm)
+                  </label>
+                  <input 
+                    type="number" 
+                    value={vitals.height}
+                    onChange={(e) => setVitals({...vitals, height: e.target.value})}
+                    placeholder="e.g. 175"
+                    className="w-full bg-gray-50 border-2 border-transparent focus:border-green-500 focus:bg-white rounded-3xl p-6 text-2xl font-black outline-none transition-all"
+                  />
                 </div>
-                <button type="submit" disabled={submitting} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50 text-lg mt-4">{submitting ? 'Updating...' : 'Update Dashboard'}</button>
-              </form>
-            </motion.div>
+              </div>
+
+              <div className="mb-16">
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-8">
+                  <FaSmile className="text-green-600" /> How do you feel today?
+                </label>
+                <div className="flex flex-wrap justify-between gap-4">
+                  {moods.map((m) => (
+                    <button
+                      key={m.label}
+                      type="button"
+                      onMouseEnter={() => setHoveredMood(m.label)}
+                      onMouseLeave={() => setHoveredMood(null)}
+                      onClick={() => setVitals({...vitals, mood: m.label})}
+                      className={`flex-1 min-w-[80px] p-8 rounded-[2.5rem] transition-all duration-500 flex flex-col items-center gap-4 group relative overflow-hidden ${
+                        vitals.mood === m.label 
+                          ? 'bg-gray-900 text-white shadow-2xl scale-110 z-10' 
+                          : 'bg-gray-50 text-gray-400 hover:bg-white hover:shadow-xl'
+                      }`}
+                    >
+                      <span className="text-4xl group-hover:scale-125 transition-transform duration-500">{m.emoji}</span>
+                      <AnimatePresence>
+                        {(vitals.mood === m.label || hoveredMood === m.label) && (
+                          <motion.span 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="text-[10px] font-black uppercase tracking-widest"
+                          >
+                            {m.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                      {vitals.mood === m.label && (
+                        <div className={`absolute top-0 left-0 w-full h-1 ${m.color}`} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-6">
+                <AnimatePresence mode="wait">
+                  {message.text && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className={`flex items-center gap-3 font-bold text-sm ${message.type === 'success' ? 'text-green-600' : 'text-red-500'}`}
+                    >
+                      {message.type === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
+                      {message.text}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button 
+                  type="submit"
+                  disabled={saving}
+                  className="bg-green-600 hover:bg-green-700 text-white font-black py-6 px-16 rounded-3xl shadow-2xl shadow-green-100 transition-all active:scale-95 flex items-center gap-4 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                  ) : (
+                    <>Save Progress <FaSave /></>
+                  )}
+                </button>
+              </div>
+            </motion.form>
+          </div>
+
+          <div className="space-y-8">
+            <StatBox icon={<FaWater />} title="Water Goal" value="2.5" unit="Liters" progress={75} color="bg-blue-500" />
+            <StatBox icon={<FaWalking />} title="Daily Steps" value="8,432" unit="Steps" progress={84} color="bg-orange-500" />
+            <StatBox icon={<FaBed />} title="Sleep Hours" value="7.5" unit="Hours" progress={90} color="bg-purple-500" />
+            
+            <div className="bg-gray-900 rounded-[3rem] p-10 text-white relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              <FaBrain className="text-3xl text-green-500 mb-6 group-hover:rotate-12 transition-transform" />
+              <h4 className="text-xl font-black mb-4 tracking-tight">Healthy Tip</h4>
+              <p className="text-gray-400 text-sm font-medium leading-relaxed mb-6">
+                "Drinking water right after you wake up helps your body start the day with more energy."
+              </p>
+              <div className="w-full bg-white/10 h-[1px]" />
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
+
+const StatBox = ({ icon, title, value, unit, progress, color }) => (
+  <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl shadow-gray-100/50 group hover:shadow-2xl transition-all duration-500">
+    <div className="flex items-center gap-4 mb-6">
+      <div className={`w-12 h-12 ${color} bg-opacity-10 rounded-2xl flex items-center justify-center text-xl text-gray-900 group-hover:scale-110 transition-transform`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p>
+        <p className="text-xl font-black text-gray-900">{value} <span className="text-[10px] text-gray-300 uppercase">{unit}</span></p>
+      </div>
+    </div>
+    <div className="w-full bg-gray-50 h-2 rounded-full overflow-hidden">
+      <motion.div 
+        initial={{ width: 0 }}
+        animate={{ width: `${progress}%` }}
+        transition={{ duration: 1.5, ease: "easeOut" }}
+        className={`h-full ${color}`} 
+      />
+    </div>
+  </div>
+);
 
 export default Tracker;
